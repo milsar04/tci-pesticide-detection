@@ -1,0 +1,15 @@
+dash>=2.14.0
+dash-bootstrap-components>=1.5.0
+pandas>=2.0.0
+plotly>=5.18.0
+scipy>=1.11.0
+numpy>=1.24.0
+pykalman>=0.9.7
+statsmodels>=0.14.0
+fpdf2>=2.7.0
+pytest==8.3.5
+hypothesis==6.131.15
+scikit-learn>=1.3.0
+xarray>=2023.1.0
+matplotlib>=3.7.0
+# phenolopy: vendored (patched) at <repo>/third_party/phenolopy.py - see third_party/SOURCE.md

@@ -1,0 +1,54 @@
+# python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# environments ----
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# os / editor cruft ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# office lock files ----
+~$*
+
+# jupyter ----
+.ipynb_checkpoints/
+
+# claude code (keep settings.json shared, hide local overrides) ----
+.claude/settings.local.json
+
+# large data files (>10MB) - share via team drive, not git ----
+Data Analysis/Imputation and Smoothing/shared data/indices_2020.csv
+Data Analysis/Imputation and Smoothing/shared data/indices_2021.csv
+Data Analysis/Imputation and Smoothing/indices_final.csv
+Data Analysis/Feature Engineering and Modeling/aligned_series.csv
+
+# ai assistant files ----
+CLAUDE.md
+docs/superpowers/
+
+# pdf and office documents ----
+*.pdf
+*.docx
+*.doc
+*.xlsx
+
+# reports and archive folders ----
+reports/
+archive/
+
+# log outputs ----
+Data Analysis/Feature Engineering and Modeling/out.txt
