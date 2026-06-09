@@ -126,3 +126,38 @@ def test_load_events_parses_dates_and_ingredients(tmp_path):
     assert ev.loc[0, "ingredients"] == ["Diquat"]
     assert ev.loc[1, "ingredients"] == ["Lambda-cyhalothrin", "Pyraflufen-ethyl"]
     assert int(ev.loc[1, "iso_year"]) == 2020
+
+
+def test_build_plot_aliases_groups_equivalent_ids(tmp_path):
+    path = _windows_csv(tmp_path, "a.csv", [
+        {"PMT_SITE": "P1", "PMT_SITE_other": "['P1ALT', 'P1OLD']",
+         "Active_date": "01/03/2021", "Inactive_date": "01/09/2021"},
+    ])
+    aliases = af.build_plot_aliases([path])
+    assert aliases["P1ALT"] == frozenset({"P1", "P1ALT", "P1OLD"})
+    assert aliases["P1"] == aliases["P1OLD"]
+
+
+def test_resolve_event_plot_prefers_direct_then_alias():
+    aliases = {"P1": frozenset({"P1", "P1ALT"}),
+               "P1ALT": frozenset({"P1", "P1ALT"})}
+    indices_plots = {"P1", "X"}
+    # direct hit
+    assert af.resolve_event_plot("P1", aliases, indices_plots) == "P1"
+    # event uses the alias; resolves to the canonical indices id
+    assert af.resolve_event_plot("P1ALT", aliases, indices_plots) == "P1"
+    # no match anywhere
+    assert af.resolve_event_plot("ZZZ", aliases, indices_plots) is None
+
+
+def test_joinable_events_filters_and_tags_matched_plot():
+    events = pd.DataFrame({
+        "PMT_SITE": ["P1ALT", "GHOST"],
+        "date": pd.to_datetime(["2020-04-15", "2020-04-15"]),
+        "ingredients": [["Diquat"], ["Diquat"]],
+        "iso_year": pd.array([2020, 2020], dtype="Int64"),
+    })
+    aliases = {"P1ALT": frozenset({"P1", "P1ALT"})}
+    out = af.joinable_events(events, {"P1"}, aliases)
+    assert list(out["PMT_SITE"]) == ["P1ALT"]
+    assert list(out["matched_plot"]) == ["P1"]

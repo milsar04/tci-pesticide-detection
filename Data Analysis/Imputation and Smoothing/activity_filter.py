@@ -71,6 +71,46 @@ def load_events(path):
     return ev[["PMT_SITE", "date", "ingredients", "iso_year"]]
 
 
+def build_plot_aliases(paths):
+    """map every plot id (primary + aliases) to the frozenset of all ids that
+    refer to the same physical plot, using the activity-date files."""
+    groups = {}  # id -> mutable set shared by its group
+
+    def union(ids):
+        merged = set(ids)
+        for i in ids:
+            if i in groups:
+                merged |= groups[i]
+        for i in merged:
+            groups[i] = merged
+
+    for path in paths:
+        adf = pd.read_csv(path)
+        for _, row in adf.iterrows():
+            primary = str(row["PMT_SITE"]).strip()
+            union({primary, *_parse_aliases(row.get("PMT_SITE_other"))})
+    return {k: frozenset(v) for k, v in groups.items()}
+
+
+def resolve_event_plot(eid, aliases, indices_plots):
+    """canonical indices plot id for an event id, alias-aware. None if no match.
+    prefers a direct hit on eid, then any equivalent alias."""
+    candidates = [eid] + sorted(aliases.get(eid, frozenset()) - {eid})
+    for cand in candidates:
+        if cand in indices_plots:
+            return cand
+    return None
+
+
+def joinable_events(events, indices_plots, aliases):
+    """add a matched_plot column (canonical indices id) and keep only the events
+    whose plot exists in the indices data."""
+    ev = events.copy()
+    ev["matched_plot"] = ev["PMT_SITE"].apply(
+        lambda e: resolve_event_plot(e, aliases, indices_plots))
+    return ev[ev["matched_plot"].notna()].reset_index(drop=True)
+
+
 def _in_any_window(plot, date, windows):
     for active, inactive in windows.get(plot, ()):  # () if plot unknown
         if active <= date <= inactive:
