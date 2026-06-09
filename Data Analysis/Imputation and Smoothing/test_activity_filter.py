@@ -161,3 +161,31 @@ def test_joinable_events_filters_and_tags_matched_plot():
     out = af.joinable_events(events, {"P1"}, aliases)
     assert list(out["PMT_SITE"]) == ["P1ALT"]
     assert list(out["matched_plot"]) == ["P1"]
+
+
+def test_event_coverage_report_counts_and_audits():
+    events = pd.DataFrame({
+        "PMT_SITE": ["P1", "P2", "GHOST"],
+        "date": pd.to_datetime(["2021-05-01", "2021-05-01", "2021-05-01"]),
+        "ingredients": [["Diquat"], ["Diquat"], ["Diquat"]],
+        "iso_year": pd.array([2021, 2021, 2021], dtype="Int64"),
+    })
+    joined = pd.DataFrame({
+        "PMT_SITE": ["P1", "P2"],
+        "date": pd.to_datetime(["2021-05-01", "2021-05-01"]),
+        "ingredients": [["Diquat"], ["Diquat"]],
+        "iso_year": pd.array([2021, 2021], dtype="Int64"),
+        "matched_plot": ["P1", "P2"],
+    })
+    data = pd.DataFrame({
+        "PMT_SITE": ["P1", "P2"],
+        "COMM": ["POTATO", "POTATO-ORGANIC"],
+        "Treatment status": ["No", "Fungicide"],
+    })
+    windows = {"P1": [(pd.Timestamp("2021-03-01"), pd.Timestamp("2021-09-01"))]}
+    rep = af.event_coverage_report(events, joined, data, windows)
+    assert "events total : 3" in rep
+    assert "matched      : 2" in rep
+    assert "GHOST" in rep                 # unmatched id listed
+    assert "P2" in rep                    # organic-with-event audit
+    assert "P1" in rep                    # label-noise audit (status "No")

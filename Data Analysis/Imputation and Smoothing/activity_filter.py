@@ -111,6 +111,40 @@ def joinable_events(events, indices_plots, aliases):
     return ev[ev["matched_plot"].notna()].reset_index(drop=True)
 
 
+def event_coverage_report(events_all, joined, data, windows):
+    """human-readable summary of the event join: coverage, organic-with-event,
+    out-of-window events, and a label-noise audit (matched plot whose Treatment
+    status is No despite a desiccation event). returns a string."""
+    comm = data.groupby("PMT_SITE")["COMM"].first()
+    status = data.groupby("PMT_SITE")["Treatment status"].first()
+    unmatched = sorted(set(events_all["PMT_SITE"]) - set(joined["PMT_SITE"]))
+    organic = sorted({p for p in joined["matched_plot"]
+                      if str(comm.get(p)) == ORGANIC_VALUE})
+    label_noise = sorted({p for p in joined["matched_plot"]
+                          if str(status.get(p, "No")).strip().lower() == "no"})
+    outside = 0
+    for _, r in joined.iterrows():
+        if not _in_any_window(r["matched_plot"], r["date"], windows):
+            outside += 1
+    lines = [
+        "desiccation event join report",
+        "-----------------------------",
+        f"events total : {len(events_all)}",
+        f"matched      : {len(joined)}",
+        f"unmatched    : {len(unmatched)}",
+        f"events outside the plot's activity window: {outside}",
+        f"events on organic plots: {len(organic)}",
+        f"label-noise (matched plot Treatment status == No): {len(label_noise)}",
+    ]
+    if unmatched:
+        lines.append("  unmatched ids (first 30): " + ", ".join(unmatched[:30]))
+    if organic:
+        lines.append("  organic-with-event plots: " + ", ".join(organic))
+    if label_noise:
+        lines.append("  label-noise plots (report to TCI): " + ", ".join(label_noise[:30]))
+    return "\n".join(lines)
+
+
 def _in_any_window(plot, date, windows):
     for active, inactive in windows.get(plot, ()):  # () if plot unknown
         if active <= date <= inactive:
@@ -186,3 +220,50 @@ def load_filtered_data(strict=False, write_report=True):
             fh.write(report)
         print(report)
     return filtered
+
+
+def load_desiccation_events(write_report=True):
+    """load + alias-join the desiccation events to the indices plots. writes
+    desiccation_join_report.txt next to this file. returns (joined_events, data)
+    where data is the raw merged indices (dates parsed)."""
+    import os
+    from app import load_data
+    import pipeline_config as cfg
+
+    data = load_data()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    events = load_events(cfg.DESICCANT_EVENTS_FILE)
+    aliases = build_plot_aliases(cfg.ACTIVITY_FILES)
+    joined = joinable_events(events, set(data["PMT_SITE"].unique()), aliases)
+
+    if write_report:
+        windows, _ = load_activity_windows(cfg.ACTIVITY_FILES)
+        report = event_coverage_report(events, joined, data, windows)
+        out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "desiccation_join_report.txt")
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write(report)
+        print(report)
+    return joined, data
+
+
+def load_imputed_unsmoothed():
+    """activity-filtered data with the 5 kept indices linear-imputed within each
+    plot but NOT smoothed. a desiccant collapse spans ~1-2 weeks, which the
+    whittaker smoother attenuates, so the decline analysis uses this series and
+    treats indices_final (smoothed) as a sensitivity check only."""
+    from app import impute_linear
+    import pipeline_config as cfg
+
+    df = load_filtered_data(write_report=False)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    feats = [c for c in cfg.KEEP_INDICES if c in df.columns]
+    parts = []
+    for _, sub in df.groupby("PMT_SITE", sort=False):
+        sub = sub.sort_values("date").copy()
+        t0 = sub["date"].min()
+        dn = (sub["date"] - t0).dt.total_seconds().values / 86400.0
+        for f in feats:
+            sub[f] = impute_linear(dn, sub[f].values.astype(float))
+        parts.append(sub)
+    return pd.concat(parts, ignore_index=True)
