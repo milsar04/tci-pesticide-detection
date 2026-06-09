@@ -35,3 +35,10 @@ ACTIVITY_FILES = [
 # from the descriptor comparison. see real_season_check.py for the sensitivity
 # analysis that validated this threshold.
 SEASON_AOS_THRESHOLD = 0.20
+
+# desiccation events (potential_desiccant_events.csv): the client's dated
+# spray events. EVENT_PRE/POST_DAYS bound the decline window measured around
+# each event date. see the desiccation-events spec.
+DESICCANT_EVENTS_FILE = os.path.join(DATA_DIR, "potential_desiccant_events.csv")
+EVENT_PRE_DAYS = 14
+EVENT_POST_DAYS = 21
