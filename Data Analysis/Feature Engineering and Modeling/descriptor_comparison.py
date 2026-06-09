@@ -27,6 +27,20 @@ def cliffs_delta(a, b):
     return float(np.sign(np.subtract.outer(a, b)).mean())
 
 
+# decline-rate primitives (desiccation events) --------------------------------
+
+def fit_slope(days, values):
+    """least-squares slope of values vs days, ignoring nan. NaN if fewer than 2
+    valid points or all x equal."""
+    days = np.asarray(days, float)
+    values = np.asarray(values, float)
+    ok = ~np.isnan(days) & ~np.isnan(values)
+    days, values = days[ok], values[ok]
+    if len(days) < 2 or np.ptp(days) == 0:
+        return np.nan
+    return float(np.polyfit(days, values, 1)[0])
+
+
 def compare_descriptor(values, labels):
     """separation of one descriptor between treated (1) and untreated (0)."""
     values = np.asarray(values, float)

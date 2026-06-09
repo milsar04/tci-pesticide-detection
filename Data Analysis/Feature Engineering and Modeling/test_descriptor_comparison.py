@@ -35,3 +35,14 @@ def test_compare_descriptor_drops_nan_and_guards_small_n():
     r = dc.compare_descriptor(values, labels)  # only 1 treated after nan drop
     assert np.isnan(r["auc"])
     assert r["n_treated"] == 1
+
+
+def test_fit_slope_known_line():
+    # y = 2x + 1 -> slope 2
+    assert abs(dc.fit_slope([0, 1, 2, 3], [1, 3, 5, 7]) - 2.0) < 1e-9
+
+
+def test_fit_slope_ignores_nan_and_guards():
+    assert abs(dc.fit_slope([0, 1, 2], [0.0, np.nan, 2.0]) - 1.0) < 1e-9
+    assert np.isnan(dc.fit_slope([5], [1.0]))          # < 2 points
+    assert np.isnan(dc.fit_slope([2, 2, 2], [1, 2, 3]))  # zero x-range
