@@ -108,3 +108,21 @@ def test_window_known_flag_marks_unmatched_plots():
     flags = out.set_index("PMT_SITE")["window_known"].to_dict()
     assert flags["P"] is True or flags["P"] == True   # matched, in-window
     assert flags["Q"] is False or flags["Q"] == False  # unmatched, kept on faith
+
+
+def test_load_events_parses_dates_and_ingredients(tmp_path):
+    p = tmp_path / "events.csv"
+    pd.DataFrame([
+        {"PMT_SITE": " P1 ", "date": "2020-04-15",
+         "Active ingredient": "['Diquat']", "iso_year": 2020},
+        {"PMT_SITE": "P2", "date": "2020-05-16",
+         "Active ingredient": "['Lambda-cyhalothrin', 'Pyraflufen-ethyl']",
+         "iso_year": 2020},
+    ]).to_csv(p, index=False)
+    ev = af.load_events(str(p))
+    assert list(ev.columns) == ["PMT_SITE", "date", "ingredients", "iso_year"]
+    assert ev.loc[0, "PMT_SITE"] == "P1"               # stripped
+    assert ev.loc[0, "date"] == pd.Timestamp("2020-04-15")
+    assert ev.loc[0, "ingredients"] == ["Diquat"]
+    assert ev.loc[1, "ingredients"] == ["Lambda-cyhalothrin", "Pyraflufen-ethyl"]
+    assert int(ev.loc[1, "iso_year"]) == 2020

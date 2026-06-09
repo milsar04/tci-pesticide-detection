@@ -52,6 +52,25 @@ def load_activity_windows(paths):
     return windows, pd.DataFrame(bad)
 
 
+# desiccation events -----------------------------------------------------------
+# the events csv (potential_desiccant_events.csv) has columns PMT_SITE, date
+# (ISO), Active ingredient (stringified list), iso_year. parsing reuses
+# _parse_aliases for the ingredient list.
+
+def load_events(path):
+    """parse the desiccation-events csv. dates are ISO, Active ingredient is a
+    stringified python list. keeps all years."""
+    ev = pd.read_csv(path)
+    ev["PMT_SITE"] = ev["PMT_SITE"].astype(str).str.strip()
+    ev["date"] = pd.to_datetime(ev["date"], errors="coerce")
+    ev["ingredients"] = ev["Active ingredient"].apply(_parse_aliases)
+    if "iso_year" in ev.columns:
+        ev["iso_year"] = pd.to_numeric(ev["iso_year"], errors="coerce").astype("Int64")
+    else:
+        ev["iso_year"] = ev["date"].dt.year.astype("Int64")
+    return ev[["PMT_SITE", "date", "ingredients", "iso_year"]]
+
+
 def _in_any_window(plot, date, windows):
     for active, inactive in windows.get(plot, ()):  # () if plot unknown
         if active <= date <= inactive:
