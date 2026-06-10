@@ -47,6 +47,25 @@ def filter_band_by_support(band, min_n=MIN_BAND_N):
     return band[band["n"] >= min_n].copy()
 
 
+# desiccation: matched-date control selection ---------------------------------
+# a control window for one event is a real-season, non-organic plot-window in
+# the same year whose SAVI season span contains the event's day-of-year, on a
+# plot that had no desiccation event that year.
+
+def select_control_windows(desc, event_doy, event_year, event_plots, index="SAVI"):
+    """control (plot, window) rows from phenology_descriptors for one event."""
+    sos = desc[f"{index}_sos_time"]
+    eos = desc[f"{index}_eos_time"]
+    mask = (
+        ~_as_bool(desc["is_organic"])
+        & _as_bool(desc["has_season"])
+        & (desc["year"] == event_year)
+        & (sos <= event_doy) & (event_doy <= eos)
+        & (~desc["PMT_SITE"].isin(event_plots))
+    )
+    return desc[mask].reset_index(drop=True)
+
+
 # paths ----------------------------------------------------------------------
 HERE = os.path.dirname(os.path.abspath(__file__))           # .../Exploratory Data Analysis
 DATA_ANALYSIS = os.path.dirname(HERE)                       # .../Data Analysis

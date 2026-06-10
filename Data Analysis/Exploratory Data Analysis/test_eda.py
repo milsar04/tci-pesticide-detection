@@ -45,3 +45,21 @@ def test_filter_band_by_support_drops_low_n():
     })
     out = eda.filter_band_by_support(band, min_n=10)
     assert list(out["x"]) == [0, 50]  # the n=2 tail day is removed
+
+
+def test_select_control_windows_filters():
+    desc = pd.DataFrame({
+        "PMT_SITE": ["A", "B", "C", "D", "E"],
+        "window":   [0, 0, 0, 0, 0],
+        "year":     [2021, 2021, 2021, 2020, 2021],
+        "is_organic": [False, True, False, False, False],
+        "has_season": [True, True, False, True, True],
+        "SAVI_sos_time": [100, 100, 100, 100, 200],
+        "SAVI_eos_time": [180, 180, 180, 180, 280],
+    })
+    # event at doy 130, year 2021, fired on plots {"E"} that year
+    out = eda.select_control_windows(desc, event_doy=130, event_year=2021,
+                                     event_plots={"E"})
+    # A only: B organic, C no-season, D wrong year, E is an event plot + season
+    # 200..280 does not contain 130 anyway
+    assert list(out["PMT_SITE"]) == ["A"]
