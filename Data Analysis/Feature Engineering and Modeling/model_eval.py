@@ -51,7 +51,7 @@ def pick_threshold(y_true, p, target="untreated_recall", min_recall=0.7, beta=2.
         rec0 = recall_score(y_true, pred, pos_label=0, zero_division=0)
         prec0 = precision_score(y_true, pred, pos_label=0, zero_division=0)
         if target == "untreated_recall":
-            if rec0 >= min_recall and prec0 > best_score:
+            if rec0 >= min_recall and prec0 >= best_score:
                 best_score, best_t = prec0, t
         else:  # fbeta on the untreated class
             b2 = beta * beta
