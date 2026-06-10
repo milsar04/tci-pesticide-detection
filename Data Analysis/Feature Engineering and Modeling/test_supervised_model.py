@@ -52,7 +52,7 @@ def test_integration_run_writes_outputs_and_beats_floor(tmp_path):
     # every exported risk score is a probability.
     scores = pd.read_csv(os.path.join(tmp_path, "model_risk_scores.csv"))
     assert scores["p_treated"].between(0, 1).all()
-    assert len(scores) == 405
+    assert len(scores) == 405, f"expected 405 rows, got {len(scores)}"
     # the tuned operating-point threshold is recorded in the metrics table.
     metrics = pd.read_csv(os.path.join(tmp_path, "model_metrics.csv"))
     assert "threshold_mean" in metrics.columns

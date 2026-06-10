@@ -3,7 +3,6 @@
 # fallback), isotonic-calibrated. evaluated through model_eval's grouped repeated CV.
 
 import os
-import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -33,10 +32,9 @@ BASELINE_FEATURE = "VH_pos_value"
 
 
 def make_booster(class_weight="balanced", **params):
-    """gradient booster with native NaN handling either way. class_weight is a
-    parameterized cost-sensitive knob (default "balanced"); a future task with a
-    different ratio - the deferred desiccation detector at ~80:1 - passes its own
-    value (e.g. a dict or "balanced") without changing this factory."""
+    """gradient booster with native NaN handling either way."""
+    # class_weight is task-agnostic - the deferred desiccation detector (~80:1)
+    # passes its own weight without changing this factory.
     if _HAVE_LGBM:
         defaults = dict(objective="binary", class_weight=class_weight,
                         n_estimators=300, learning_rate=0.05, num_leaves=31,
@@ -52,6 +50,7 @@ def make_booster(class_weight="balanced", **params):
 def booster_param_grid(quick=False):
     """small grid (lightgbm only). returns None when no tuning applies."""
     if not _HAVE_LGBM:
+        # no tuning for histgradientboosting fallback
         return None
     if quick:
         return {"n_estimators": [200], "num_leaves": [31]}
@@ -83,14 +82,12 @@ def final_calibrated_model(best_params=None):
 
 def rollup_by_plot(scores):
     """per-plot max and mean of the window-level risk score."""
-    g = scores.groupby("PMT_SITE")
-    return pd.DataFrame({
-        "PMT_SITE": list(g.groups.keys()),
-        "p_treated_max": g["p_treated"].max().values,
-        "p_treated_mean": g["p_treated"].mean().values,
-        "n_windows": g.size().values,
-        "any_treated": g["treated"].max().values,
-    })
+    return (scores.groupby("PMT_SITE")
+            .agg(p_treated_max=("p_treated", "max"),
+                 p_treated_mean=("p_treated", "mean"),
+                 n_windows=("p_treated", "count"),
+                 any_treated=("treated", "max"))
+            .reset_index())
 
 
 def metrics_table(baseline, booster):
