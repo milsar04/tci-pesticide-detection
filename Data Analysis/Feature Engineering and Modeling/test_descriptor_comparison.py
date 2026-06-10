@@ -46,3 +46,20 @@ def test_fit_slope_ignores_nan_and_guards():
     assert abs(dc.fit_slope([0, 1, 2], [0.0, np.nan, 2.0]) - 1.0) < 1e-9
     assert np.isnan(dc.fit_slope([5], [1.0]))          # < 2 points
     assert np.isnan(dc.fit_slope([2, 2, 2], [1, 2, 3]))  # zero x-range
+
+
+def test_event_descriptors_known_drop():
+    # value 1.0 at event, falls to 0.0 by day 10, flat before the event.
+    # days: -14..21 sampled every 7 days plus day 10.
+    days =   [-14, -7,  0,  7, 10, 14, 21]
+    values = [1.0, 1.0, 1.0, 0.3, 0.0, 0.0, 0.0]
+    d = dc.event_descriptors(days, values)
+    assert d["drop_magnitude"] == 1.0                 # 1.0 -> 0.0
+    assert d["post_slope_14d"] < 0                    # declining after event
+    assert d["time_to_half_drop"] == 7.0              # first day value <= 0.5
+    assert d["slope_contrast"] < 0                    # post steeper than flat pre
+
+
+def test_event_descriptors_guards_empty():
+    d = dc.event_descriptors([0, 1], [np.nan, np.nan])
+    assert all(np.isnan(v) for v in d.values())

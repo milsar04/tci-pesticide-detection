@@ -41,6 +41,43 @@ def fit_slope(days, values):
     return float(np.polyfit(days, values, 1)[0])
 
 
+def event_descriptors(days, values, pre=14, slope_win=14, post=21):
+    """decline descriptors for one event-aligned series. days are offsets from
+    the event date (negative = before). all NaN-guarded.
+      post_slope_14d  - slope over day 0..slope_win
+      drop_magnitude  - value at the event minus the min over day 0..post
+      time_to_half_drop - first day in 0..post reaching half the drop (NaN if none)
+      slope_contrast  - post_slope_14d minus the pre-event slope (-pre..0)"""
+    days = np.asarray(days, float)
+    values = np.asarray(values, float)
+    ok = ~np.isnan(days) & ~np.isnan(values)
+    days, values = days[ok], values[ok]
+    out = dict(post_slope_14d=np.nan, drop_magnitude=np.nan,
+               time_to_half_drop=np.nan, slope_contrast=np.nan)
+    if len(values) == 0:
+        return out
+    order = np.argsort(days)
+    days, values = days[order], values[order]
+
+    post_sel = (days >= 0) & (days <= slope_win)
+    out["post_slope_14d"] = fit_slope(days[post_sel], values[post_sel])
+    pre_sel = (days >= -pre) & (days <= 0)
+    pre_slope = fit_slope(days[pre_sel], values[pre_sel])
+    out["slope_contrast"] = out["post_slope_14d"] - pre_slope
+
+    drop_sel = (days >= 0) & (days <= post)
+    if drop_sel.any() and (days >= 0).any():
+        v_event = values[days >= 0][0]            # earliest observation at/after the event
+        v_min = np.nanmin(values[drop_sel])
+        drop = v_event - v_min
+        out["drop_magnitude"] = drop
+        if drop > 0:
+            thresh = v_event - 0.5 * drop
+            below = days[drop_sel][values[drop_sel] <= thresh]
+            out["time_to_half_drop"] = float(below.min()) if len(below) else np.nan
+    return out
+
+
 def compare_descriptor(values, labels):
     """separation of one descriptor between treated (1) and untreated (0)."""
     values = np.asarray(values, float)
