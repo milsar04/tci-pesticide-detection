@@ -82,6 +82,99 @@ def calendar_window_slope(series, start_date, days):
     return fit_slope(off, w["value"].values)
 
 
+def _plot_event_overlay(data, joined, index, out_png):
+    """mean event-aligned curve of desiccated plots (day 0 = event date),
+    over -EVENT_PRE_DAYS..+EVENT_POST_DAYS, plus a sample of individual series."""
+    import pipeline_config as cfg
+    rows = []
+    for _, ev in joined.iterrows():
+        plot, edate = ev["matched_plot"], ev["date"]
+        lo = edate - pd.Timedelta(days=cfg.EVENT_PRE_DAYS)
+        hi = edate + pd.Timedelta(days=cfg.EVENT_POST_DAYS)
+        w = data[(data["PMT_SITE"] == plot) & (data["date"] >= lo) & (data["date"] <= hi)]
+        for _, r in w.iterrows():
+            d = (r["date"] - edate).days
+            rows.append({"d": d, "value": r[index], "key": f"{plot}_{edate.date()}"})
+    if not rows:
+        return
+    al = pd.DataFrame(rows)
+    band = al.groupby("d")["value"].agg(mean="mean", std="std", n="count").reset_index()
+    band["std"] = band["std"].fillna(0.0)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for key, sub in al.groupby("key"):
+        ax.plot(sub.sort_values("d")["d"], sub.sort_values("d")["value"],
+                color="0.8", lw=0.6, zorder=1)
+    ax.plot(band["d"], band["mean"], color="C3", lw=2, label="desiccated mean", zorder=3)
+    ax.fill_between(band["d"], band["mean"] - band["std"], band["mean"] + band["std"],
+                    color="C3", alpha=0.15, zorder=2)
+    ax.axvline(0, color="k", lw=0.8, ls="--")
+    ax.set(xlabel="days since event", ylabel=index, title=f"{index} - event-aligned decline")
+    ax.legend()
+    fig.tight_layout(); fig.savefig(out_png, dpi=120); plt.close(fig)
+
+
+def run_desiccation_validation():
+    """stage A: test the client's steeper-decline hypothesis. for each kept
+    index, compare the post-event decline slope of desiccated plots against
+    matched-date controls. writes figures + desiccation_validation.csv and
+    prints the gate verdict (any index symmetric AUC >= 0.60)."""
+    if IS_DIR not in _sys.path:
+        _sys.path.insert(0, IS_DIR)
+    import activity_filter as af
+
+    joined, _ = af.load_desiccation_events(write_report=True)
+    data = af.load_imputed_unsmoothed()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    desc = pd.read_csv(DESC_FILE)
+
+    # plots that fired an event, per year, to exclude from controls
+    event_plots_by_year = (joined.groupby(joined["date"].dt.year)["matched_plot"]
+                           .apply(set).to_dict())
+
+    rows = []
+    for idx in KEEP_INDICES:
+        if idx not in data.columns:
+            continue
+        treated_slopes, control_slopes = [], []
+        for _, ev in joined.iterrows():
+            plot, edate = ev["matched_plot"], ev["date"]
+            eyear, edoy = edate.year, edate.dayofyear
+            series = data.loc[data["PMT_SITE"] == plot, ["date", idx]] \
+                         .rename(columns={idx: "value"})
+            # post-event slope over day 0..+14 (mirrors Stage B post_slope_14d)
+            t = calendar_window_slope(series, edate, 14)
+            if not np.isnan(t):
+                treated_slopes.append(t)
+            controls = select_control_windows(
+                desc, edoy, eyear, event_plots_by_year.get(eyear, set()))
+            for cplot in controls["PMT_SITE"].unique():
+                cs = data.loc[data["PMT_SITE"] == cplot, ["date", idx]] \
+                         .rename(columns={idx: "value"})
+                cslope = calendar_window_slope(cs, edate, 14)
+                if not np.isnan(cslope):
+                    control_slopes.append(cslope)
+        values = np.array(treated_slopes + control_slopes)
+        labels = np.array([1] * len(treated_slopes) + [0] * len(control_slopes))
+        r = compare_descriptor(values, labels)
+        r["index"] = idx
+        rows.append(r)
+        os.makedirs(FIG_DIR, exist_ok=True)
+        _plot_event_overlay(data, joined, idx, os.path.join(FIG_DIR, f"desiccation_overlay_{idx}.png"))
+
+    out = pd.DataFrame(rows)[["index", "auc", "cliffs_delta", "mw_p",
+                              "n_treated", "n_untreated"]]
+    out.sort_values("auc", ascending=False, inplace=True)
+    out_csv = os.path.join(FE_DIR, "desiccation_validation.csv")
+    out.to_csv(out_csv, index=False, float_format="%.4f")
+    print("\ndesiccation slope test (post-event slope, desiccated vs controls):")
+    print(out.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
+    best = out["auc"].max()
+    print(f"\nGATE: best index AUC = {best:.3f} "
+          f"({'PASS - proceed to Stage B' if best >= 0.60 else 'FAIL - stop, write up as a finding'})")
+    return out
+
+
 # paths ----------------------------------------------------------------------
 HERE = os.path.dirname(os.path.abspath(__file__))           # .../Exploratory Data Analysis
 DATA_ANALYSIS = os.path.dirname(HERE)                       # .../Data Analysis
