@@ -158,3 +158,95 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# desiccation ranking (stage B) -----------------------------------------------
+DESICCATION_OUT = os.path.join(HERE, "desiccation_comparison.csv")
+EVENT_DESCRIPTORS = ["post_slope_14d", "drop_magnitude",
+                     "time_to_half_drop", "slope_contrast"]
+
+
+def _event_population(data, joined, desc, index):
+    """build (descriptor value, label) rows for one index: desiccated events
+    (label 1) vs matched-date controls (label 0). data must carry the index
+    column on a parsed 'date'."""
+    import sys as _sys
+    eda_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "Exploratory Data Analysis")
+    if eda_dir not in _sys.path:
+        _sys.path.insert(0, eda_dir)
+    from eda import select_control_windows
+    import pipeline_config as cfg
+
+    event_plots_by_year = (joined.groupby(joined["date"].dt.year)["matched_plot"]
+                           .apply(set).to_dict())
+    pop = {k: ([], []) for k in EVENT_DESCRIPTORS}  # name -> (values, labels)
+
+    def add(plot, edate, label):
+        lo = edate - pd.Timedelta(days=cfg.EVENT_PRE_DAYS)
+        hi = edate + pd.Timedelta(days=cfg.EVENT_POST_DAYS)
+        w = data[(data["PMT_SITE"] == plot) & (data["date"] >= lo) & (data["date"] <= hi)]
+        offs = (w["date"] - edate).dt.days.values
+        d = event_descriptors(offs, w[index].values)
+        for k in EVENT_DESCRIPTORS:
+            pop[k][0].append(d[k]); pop[k][1].append(label)
+
+    for _, ev in joined.iterrows():
+        plot, edate = ev["matched_plot"], ev["date"]
+        add(plot, edate, 1)
+        controls = select_control_windows(
+            desc, edate.dayofyear, edate.year,
+            event_plots_by_year.get(edate.year, set()))
+        for cplot in controls["PMT_SITE"].unique():
+            add(cplot, edate, 0)
+    return pop
+
+
+def compare_desiccation():
+    """stage B: rank event-anchored decline descriptors (desiccated vs matched
+    controls) per index, on the imputed-unsmoothed series. then recompute the
+    winners on the smoothed indices_final as a smoothing-sensitivity check.
+    writes desiccation_comparison.csv."""
+    import sys as _sys
+    is_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "Imputation and Smoothing")
+    if is_dir not in _sys.path:
+        _sys.path.insert(0, is_dir)
+    import activity_filter as af
+    import pipeline_config as cfg
+
+    joined, _ = af.load_desiccation_events(write_report=False)
+    desc = pd.read_csv(DESC_FILE)
+
+    unsmoothed = af.load_imputed_unsmoothed()
+    unsmoothed["date"] = pd.to_datetime(unsmoothed["date"], errors="coerce")
+    smoothed = pd.read_csv(os.path.join(is_dir, "indices_final.csv"))
+    smoothed["date"] = pd.to_datetime(smoothed["date"], errors="coerce")
+
+    rows = []
+    for idx in cfg.KEEP_INDICES:
+        if idx not in unsmoothed.columns:
+            continue
+        pop = _event_population(unsmoothed, joined, desc, idx)
+        smo = _event_population(smoothed, joined, desc, idx)
+        for name in EVENT_DESCRIPTORS:
+            v, l = pop[name]
+            r = compare_descriptor(np.array(v), np.array(l))
+            sv, sl = smo[name]
+            rs = compare_descriptor(np.array(sv), np.array(sl))
+            r["descriptor"] = f"{idx}_{name}"
+            r["auc_smoothed"] = rs["auc"]
+            r["auc_delta_smoothing"] = (r["auc"] - rs["auc"]
+                                        if not (np.isnan(r["auc"]) or np.isnan(rs["auc"]))
+                                        else np.nan)
+            rows.append(r)
+
+    ranking = pd.DataFrame(rows)[["descriptor", "auc", "auc_smoothed",
+                                  "auc_delta_smoothing", "cliffs_delta", "mw_p",
+                                  "n_treated", "n_untreated"]]
+    ranking.sort_values("auc", ascending=False, inplace=True)
+    ranking.reset_index(drop=True, inplace=True)
+    ranking.to_csv(DESICCATION_OUT, index=False, float_format="%.4f")
+    print(f"desiccation ranking written to {DESICCATION_OUT}\n")
+    print(ranking.head(15).to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+    return ranking
