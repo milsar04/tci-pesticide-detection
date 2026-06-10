@@ -1,0 +1,3 @@
+model,pr_auc_mean,pr_auc_std,roc_auc_mean,roc_auc_std,recall_untreated_mean,recall_untreated_std,precision_untreated_mean,precision_untreated_std,brier_mean,brier_std,threshold_mean,threshold_std,roc_auc_delta_vs_baseline,pr_auc_delta_vs_baseline
+baseline_lr,0.9136,0.0297,0.7646,0.0555,0.6990,0.1252,0.3846,0.0614,0.1971,0.0170,0.5285,0.0262,,
+booster,0.9586,0.0221,0.8917,0.0430,0.7730,0.1311,0.6114,0.0771,0.1212,0.0270,0.8877,0.0992,0.1271,0.0450
