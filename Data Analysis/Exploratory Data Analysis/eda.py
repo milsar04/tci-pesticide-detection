@@ -10,6 +10,13 @@ import matplotlib
 matplotlib.use("Agg")  # headless: write png files, no display
 import matplotlib.pyplot as plt
 
+import sys as _sys
+_FE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "Feature Engineering and Modeling")
+if _FE_DIR not in _sys.path:
+    _sys.path.insert(0, _FE_DIR)
+from descriptor_comparison import compare_descriptor, fit_slope
+
 
 def summarize_band(df, x, value, group):
     """per (group, x): mean, std, n of value, ignoring nan. long-form output
@@ -64,6 +71,15 @@ def select_control_windows(desc, event_doy, event_year, event_plots, index="SAVI
         & (~desc["PMT_SITE"].isin(event_plots))
     )
     return desc[mask].reset_index(drop=True)
+
+
+def calendar_window_slope(series, start_date, days):
+    """slope of value vs day-offset over [start_date, start_date+days] for one
+    plot's (date, value) series. NaN if fewer than 2 valid points."""
+    end = start_date + pd.Timedelta(days=days)
+    w = series[(series["date"] >= start_date) & (series["date"] <= end)]
+    off = (w["date"] - start_date).dt.total_seconds().values / 86400.0
+    return fit_slope(off, w["value"].values)
 
 
 # paths ----------------------------------------------------------------------

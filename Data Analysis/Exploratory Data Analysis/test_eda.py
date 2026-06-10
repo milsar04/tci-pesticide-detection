@@ -63,3 +63,13 @@ def test_select_control_windows_filters():
     # A only: B organic, C no-season, D wrong year, E is an event plot + season
     # 200..280 does not contain 130 anyway
     assert list(out["PMT_SITE"]) == ["A"]
+
+
+def test_calendar_window_slope_over_dates():
+    series = pd.DataFrame({
+        "date": pd.to_datetime(["2021-05-01", "2021-05-06", "2021-05-11",
+                                "2021-06-30"]),
+        "value": [1.0, 0.5, 0.0, 5.0],   # -0.1/day over the first 10 days
+    })
+    s = eda.calendar_window_slope(series, pd.Timestamp("2021-05-01"), days=14)
+    assert abs(s - (-0.1)) < 1e-9          # the 2021-06-30 point is outside
