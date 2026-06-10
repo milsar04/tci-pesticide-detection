@@ -76,7 +76,9 @@ def baseline_estimator(class_weight="balanced"):
 def final_calibrated_model(best_params=None):
     """isotonic-calibrated booster for the exported probabilities."""
     base = make_booster(**(best_params or {}))
-    # cv=3 stratified internal calibration; isotonic is monotonic so ranking is preserved.
+    # cv=3 uses stratified (not grouped) folds inside CalibratedClassifierCV - intentional.
+    # calibration is a post-hoc monotonic transform; within-plot leakage here does not
+    # affect the AUC/PR-AUC metrics (which come from the outer grouped CV in model_eval).
     return CalibratedClassifierCV(base, method="isotonic", cv=3)
 
 

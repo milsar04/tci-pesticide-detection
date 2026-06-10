@@ -136,6 +136,7 @@ def imputed_scaled_view(X):
 def prepare(path=IN_FILE, drop_timing=False, verbose=False):
     """load, filter, and return a group-aware stratified 80/20 train/test split.
 
+    convenience single grouped split - not used by supervised_model.py's CV loop.
     StratifiedGroupKFold keeps all windows of one plot on the same side (no leakage)
     and preserves the treated/untreated ratio. returns
     X_train, X_test, y_train, y_test, meta_train, meta_test.
