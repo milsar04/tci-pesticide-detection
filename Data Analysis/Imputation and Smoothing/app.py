@@ -401,6 +401,22 @@ SMOOTHING_METHODS["Exponential MA"] = smooth_ema
 SMOOTHING_METHODS["Median Filter"] = smooth_median
 SMOOTHING_METHODS["Whittaker-Eilers"] = smooth_whittaker
 
+
+def apply_smoother(name, func, series, savgol_window=11, ma_window=7):
+    """dispatch a smoother by name. the four parameterised smoothers get their
+    window/span; everything else takes just the series via func. one place so
+    the dashboard and evaluate_all stay in sync."""
+    if name == "Savitzky-Golay":
+        return smooth_savgol(series, window=savgol_window)
+    if name == "Moving Average":
+        return smooth_moving_avg(series, window=ma_window)
+    if name == "Exponential MA":
+        return smooth_ema(series, span=ma_window)
+    if name == "Median Filter":
+        return smooth_median(series, kernel_size=ma_window)
+    return func(series)
+
+
 # dash layout -----------------------------------------------------------------
 
 app = dash.Dash(
@@ -778,26 +794,8 @@ def update_graph(
         func = SMOOTHING_METHODS.get(method_name)
         if func is None:
             continue
-        if method_name == "Savitzky-Golay":
-            smoothed = smooth_savgol(base_imputed.copy(), window=savgol_window)
-        elif method_name == "Moving Average":
-            smoothed = smooth_moving_avg(base_imputed.copy(), window=ma_window)
-        elif method_name == "Kalman Filter":
-            smoothed = smooth_kalman(base_imputed.copy())
-        elif method_name == "Low-pass (Butterworth)":
-            smoothed = smooth_lowpass(base_imputed.copy())
-        elif method_name == "LOWESS":
-            smoothed = smooth_lowess(base_imputed.copy())
-        elif method_name == "Gaussian":
-            smoothed = smooth_gaussian(base_imputed.copy())
-        elif method_name == "Exponential MA":
-            smoothed = smooth_ema(base_imputed.copy(), span=ma_window)
-        elif method_name == "Median Filter":
-            smoothed = smooth_median(base_imputed.copy(), kernel_size=ma_window)
-        elif method_name == "Whittaker-Eilers":
-            smoothed = smooth_whittaker(base_imputed.copy())
-        else:
-            smoothed = func(base_imputed.copy())
+        smoothed = apply_smoother(method_name, func, base_imputed.copy(),
+                                  savgol_window, ma_window)
 
         fig.add_trace(
             go.Scatter(
@@ -1008,27 +1006,8 @@ def run_evaluation(n_clicks, site, feature, year_filter, savgol_window, ma_windo
     smooth_results = []
     for method_name, func in SMOOTHING_METHODS.items():
         try:
-            if method_name == "Savitzky-Golay":
-                smoothed = smooth_savgol(base_imputed.copy(), window=savgol_window)
-            elif method_name == "Moving Average":
-                smoothed = smooth_moving_avg(base_imputed.copy(), window=ma_window)
-            elif method_name == "Kalman Filter":
-                smoothed = smooth_kalman(base_imputed.copy())
-            elif method_name == "Low-pass (Butterworth)":
-                smoothed = smooth_lowpass(base_imputed.copy())
-            elif method_name == "LOWESS":
-                smoothed = smooth_lowess(base_imputed.copy())
-            elif method_name == "Gaussian":
-                smoothed = smooth_gaussian(base_imputed.copy())
-            elif method_name == "Exponential MA":
-                smoothed = smooth_ema(base_imputed.copy(), span=ma_window)
-            elif method_name == "Median Filter":
-                smoothed = smooth_median(base_imputed.copy(), kernel_size=ma_window)
-            elif method_name == "Whittaker-Eilers":
-                smoothed = smooth_whittaker(base_imputed.copy())
-            else:
-                smoothed = func(base_imputed.copy())
-
+            smoothed = apply_smoother(method_name, func, base_imputed.copy(),
+                                      savgol_window, ma_window)
             smoothed = np.array(smoothed, dtype=float)
 
             # roughness = rms of 2nd differences
@@ -1069,7 +1048,6 @@ def run_evaluation(n_clicks, site, feature, year_filter, savgol_window, ma_windo
 
     # build output tables and chart
     imp_df = pd.DataFrame(imp_results)
-    imp_numeric = imp_df[imp_df.get("_rmse", pd.Series(dtype=float)).notna()].copy()
     if "_rmse" in imp_df.columns:
         imp_numeric = imp_df[imp_df["_rmse"].notna()].copy()
     else:

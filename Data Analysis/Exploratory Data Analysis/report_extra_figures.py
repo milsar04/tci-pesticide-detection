@@ -21,7 +21,11 @@ FIG_DIR = os.path.join(HERE, "figures")
 sys.path.insert(0, FE_DIR)
 from descriptor_comparison import compare_descriptor, _as_bool  # noqa: E402
 
-INDICES = ["SAVI", "GNDVI", "RENDVI", "VH", "RVI"]
+_IS_DIR = os.path.join(os.path.dirname(HERE), "Imputation and Smoothing")
+sys.path.insert(0, _IS_DIR)
+import pipeline_config as cfg  # noqa: E402
+
+INDICES = cfg.KEEP_INDICES
 COLORS = {"SAVI": "#2ca02c", "GNDVI": "#1f77b4", "RENDVI": "#9467bd",
           "VH": "#d62728", "RVI": "#ff7f0e"}
 

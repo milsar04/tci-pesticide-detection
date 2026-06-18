@@ -17,6 +17,12 @@ if _FE_DIR not in _sys.path:
     _sys.path.insert(0, _FE_DIR)
 from descriptor_comparison import compare_descriptor, fit_slope
 
+_IS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "Imputation and Smoothing")
+if _IS_DIR not in _sys.path:
+    _sys.path.insert(0, _IS_DIR)
+import pipeline_config as cfg
+
 
 def summarize_band(df, x, value, group):
     """per (group, x): mean, std, n of value, ignoring nan. long-form output
@@ -32,9 +38,7 @@ def summarize_band(df, x, value, group):
     return out
 
 
-def _as_bool(s):
-    """coerce a csv-roundtripped boolean-ish column to real bools."""
-    return s.astype(str).str.lower().isin(["true", "1", "yes"])
+_as_bool = cfg._as_bool
 
 
 # growth-stage display window (days since sos). the masked windows keep long
@@ -186,7 +190,7 @@ FINAL_FILE = os.path.join(IS_DIR, "indices_final.csv")
 ALIGNED_FILE = os.path.join(FE_DIR, "aligned_series.csv")
 DESC_FILE = os.path.join(FE_DIR, "phenology_descriptors.csv")
 
-KEEP_INDICES = ["SAVI", "GNDVI", "RENDVI", "VH", "RVI"]
+KEEP_INDICES = cfg.KEEP_INDICES
 
 # headline descriptors to box-plot (one optical shape, one optical level, one SAR)
 BOX_DESCRIPTORS = [

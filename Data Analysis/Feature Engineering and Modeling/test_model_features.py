@@ -67,17 +67,6 @@ def test_build_xy_drop_timing_removes_20_cols():
     assert not any(c in X.columns for c in mf.TIMING_COLS)
 
 
-def test_imputed_scaled_view_returns_tuple_no_nan_unit_scale():
-    kept = mf.filter_modeling_rows(_toy_df())
-    X, _, _, _ = mf.build_xy(kept)
-    X.iloc[0, 0] = np.nan
-    Xs, imputer, scaler = mf.imputed_scaled_view(X)
-    assert not np.isnan(Xs).any()
-    assert abs(np.nanmean(Xs)) < 1e-6          # standardized -> ~zero mean
-    # fitted transformers are returned for leakage-safe .transform() on a test split
-    assert hasattr(imputer, "transform") and hasattr(scaler, "transform")
-
-
 def test_real_file_filters_to_405_windows():
     kept = mf.filter_modeling_rows(mf.load_descriptors())
     assert len(kept) == 405

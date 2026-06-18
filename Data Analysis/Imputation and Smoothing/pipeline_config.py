@@ -16,6 +16,23 @@ ALL_INDICES = [
     "VH", "VV", "RVI", "VH/VV",
 ]
 
+# the 13 timesat-style descriptor suffixes phenolopy emits per index. single
+# source of truth - phenolopy_adapter (output keys) and model_features (column
+# whitelist) both reference this, so they cannot drift apart.
+DESCRIPTOR_SUFFIXES = [
+    "pos_time", "pos_value", "bse_value", "aos_value",
+    "sos_time", "sos_value", "eos_time", "eos_value",
+    "los", "roi", "rod", "lios", "sios",
+]
+
+
+def _as_bool(s):
+    """coerce a csv-roundtripped boolean-ish column to real bools.
+    accepts 'True'/'False' (native bool round-trip) and '1'/'0'."""
+    lo = s.astype(str).str.strip().str.lower()
+    return lo.isin({"true", "1"})
+
+
 # identifier / label columns carried through to the modelling dataset.
 METADATA_COLS = [
     "PMT_SITE", "date", "PMT_YEAR", "COMM", "is_organic", "window_known",  # is_organic + window_known added by activity_filter.py

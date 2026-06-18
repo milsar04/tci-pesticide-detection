@@ -12,10 +12,7 @@ from app import (
     IMPUTATION_METHODS,
     SMOOTHING_METHODS,
     impute_linear,
-    smooth_savgol,
-    smooth_moving_avg,
-    smooth_ema,
-    smooth_median,
+    apply_smoother,
 )
 from activity_filter import load_filtered_data
 import pipeline_config as cfg
@@ -92,16 +89,7 @@ def evaluate_one(dates_numeric, raw, valid_idx, rng):
     sm_rows = []
     for name, func in SMOOTHING_METHODS.items():
         try:
-            if name == "Savitzky-Golay":
-                sm = smooth_savgol(base.copy(), window=SAVGOL_WIN)
-            elif name == "Moving Average":
-                sm = smooth_moving_avg(base.copy(), window=MA_WIN)
-            elif name == "Exponential MA":
-                sm = smooth_ema(base.copy(), span=MA_WIN)
-            elif name == "Median Filter":
-                sm = smooth_median(base.copy(), kernel_size=MA_WIN)
-            else:
-                sm = func(base.copy())
+            sm = apply_smoother(name, func, base.copy(), SAVGOL_WIN, MA_WIN)
             sm = np.asarray(sm, dtype=float)
 
             # roughness = sqrt of mean squared 2nd differences

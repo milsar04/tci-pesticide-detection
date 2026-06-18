@@ -32,16 +32,13 @@ def fold_metrics(y_true, p, threshold=0.5):
     }
 
 
-def pick_threshold(y_true, p, target="untreated_recall", min_recall=0.7, beta=2.0):
-    """choose a decision threshold (task-agnostic). candidates are the unique
-    probabilities plus 0 and 1.
-      target='untreated_recall' - the most precise threshold whose untreated
-        (class 0) recall still clears min_recall (catch the minority class, then
-        be as precise as possible).
-      target='fbeta' - the threshold maximizing F-beta on the untreated class
-        (beta>1 favours recall of the rare untreated class).
-    falls back to 0.5 if nothing qualifies. raising the threshold predicts more
-    of the low-scored points as untreated, so untreated recall rises with t."""
+def pick_threshold(y_true, p, min_recall=0.7):
+    """choose a decision threshold for the rare untreated (class 0): the most
+    precise threshold whose untreated recall still clears min_recall (catch the
+    minority class, then be as precise as possible). candidates are the unique
+    probabilities plus 0 and 1; falls back to 0.5 if nothing qualifies. raising
+    the threshold predicts more low-scored points as untreated, so untreated
+    recall rises with t."""
     y_true = np.asarray(y_true, int)
     p = np.asarray(p, float)
     cands = np.unique(np.concatenate([[0.0], p, [1.0]]))
@@ -50,15 +47,8 @@ def pick_threshold(y_true, p, target="untreated_recall", min_recall=0.7, beta=2.
         pred = (p >= t).astype(int)
         rec0 = recall_score(y_true, pred, pos_label=0, zero_division=0)
         prec0 = precision_score(y_true, pred, pos_label=0, zero_division=0)
-        if target == "untreated_recall":
-            if rec0 >= min_recall and prec0 >= best_score:
-                best_score, best_t = prec0, t
-        else:  # fbeta on the untreated class
-            b2 = beta * beta
-            denom = b2 * prec0 + rec0
-            f = (1 + b2) * prec0 * rec0 / denom if denom > 0 else 0.0
-            if f > best_score:
-                best_score, best_t = f, t
+        if rec0 >= min_recall and prec0 >= best_score:
+            best_score, best_t = prec0, t
     return float(best_t)
 
 
@@ -74,8 +64,7 @@ def aggregate(rows):
 
 def evaluate_estimator(estimator, X, y, groups, *, param_grid=None,
                        n_repeats=5, n_splits=5, inner_splits=3, seed=42,
-                       tune_threshold=False, threshold_target="untreated_recall",
-                       min_recall=0.7):
+                       tune_threshold=False, min_recall=0.7):
     """repeated grouped CV. if param_grid is given, each outer training fold runs a
     grouped GridSearchCV (nested CV, scoring=average_precision); else the estimator
     is fit directly. if tune_threshold, the decision threshold is chosen on the
@@ -105,8 +94,7 @@ def evaluate_estimator(estimator, X, y, groups, *, param_grid=None,
                     clone(estimator), Xtr, ytr,
                     cv=make_splitter(n_splits=inner_splits, seed=seed + r),
                     groups=gtr, method="predict_proba")[:, 1]
-                thr = pick_threshold(ytr, p_tr, target=threshold_target,
-                                     min_recall=min_recall)
+                thr = pick_threshold(ytr, p_tr, min_recall=min_recall)
             p = model.predict_proba(X.iloc[te])[:, 1]
             rows.append(fold_metrics(y[te], p, threshold=thr))
     return aggregate(rows)

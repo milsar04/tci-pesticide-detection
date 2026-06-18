@@ -2,10 +2,18 @@
 # separates treated from untreated plot-windows. organic windows are excluded.
 
 import os
+import sys
 import numpy as np
 import pandas as pd
 from scipy.stats import mannwhitneyu
 from sklearn.metrics import roc_auc_score
+
+# shared config (index lists, _as_bool) - sibling-dir import, see model_features.py
+_IS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "Imputation and Smoothing")
+if _IS_DIR not in sys.path:
+    sys.path.insert(0, _IS_DIR)
+import pipeline_config as cfg
 
 # metadata columns in phenology_descriptors.csv that are NOT descriptors
 META_COLS = {"PMT_SITE", "window", "year", "treated",
@@ -106,10 +114,9 @@ DESC_FILE = os.path.join(HERE, "phenology_descriptors.csv")
 OUT_FILE = os.path.join(HERE, "descriptor_comparison.csv")
 
 
-def _as_bool(s):
-    # accept "True"/"False" (csv round-trip of native bool) and "1"/"0"
-    lo = s.astype(str).str.strip().str.lower()
-    return lo.isin({"true", "1"})
+# re-exported so existing `from descriptor_comparison import _as_bool` importers
+# (timing_confound_check, report_extra_figures) keep working.
+_as_bool = cfg._as_bool
 
 
 def descriptor_columns(df):
@@ -176,7 +183,6 @@ def _event_population(data, joined, desc, index):
     if eda_dir not in _sys.path:
         _sys.path.insert(0, eda_dir)
     from eda import select_control_windows
-    import pipeline_config as cfg
 
     event_plots_by_year = (joined.groupby(joined["date"].dt.year)["matched_plot"]
                            .apply(set).to_dict())
@@ -213,7 +219,6 @@ def compare_desiccation():
     if is_dir not in _sys.path:
         _sys.path.insert(0, is_dir)
     import activity_filter as af
-    import pipeline_config as cfg
 
     joined, _ = af.load_desiccation_events(write_report=False)
     desc = pd.read_csv(DESC_FILE)

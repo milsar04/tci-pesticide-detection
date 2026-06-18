@@ -11,13 +11,19 @@
 # separate regardless of windowing). reuses descriptor_comparison's exact AUC.
 
 import os
+import sys
 import pandas as pd
 from descriptor_comparison import compare_descriptor, _as_bool
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+_IS_DIR = os.path.join(os.path.dirname(HERE), "Imputation and Smoothing")
+if _IS_DIR not in sys.path:
+    sys.path.insert(0, _IS_DIR)
+import pipeline_config as cfg
+
 DESC_FILE = os.path.join(HERE, "phenology_descriptors.csv")
 
-INDICES = ["SAVI", "GNDVI", "RENDVI", "VH", "RVI"]
+INDICES = cfg.KEEP_INDICES
 TIMING = [f"{i}_{k}" for i in INDICES for k in ("sos_time", "pos_time", "eos_time")]
 AMPL = [f"{i}_{k}" for i in INDICES for k in ("aos_value", "pos_value", "lios")]
 

@@ -17,11 +17,14 @@ if _THIRD_PARTY not in sys.path:
     sys.path.insert(0, _THIRD_PARTY)
 import phenolopy  # noqa: E402
 
-DESCRIPTOR_KEYS = [
-    "pos_time", "pos_value", "bse_value", "aos_value",
-    "sos_time", "sos_value", "eos_time", "eos_value",
-    "los", "roi", "rod", "lios", "sios",
-]
+# shared config (descriptor suffixes) - sibling-dir import, see model_features.py
+_IS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "Imputation and Smoothing")
+if _IS_DIR not in sys.path:
+    sys.path.insert(0, _IS_DIR)
+import pipeline_config as cfg  # noqa: E402
+
+DESCRIPTOR_KEYS = cfg.DESCRIPTOR_SUFFIXES
 
 # our key -> phenolopy output variable name
 _PP_MAP = {

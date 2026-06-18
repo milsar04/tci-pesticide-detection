@@ -74,7 +74,7 @@ def test_pick_threshold_meets_untreated_recall_floor():
     from sklearn.metrics import recall_score
     y = np.array([1, 1, 1, 0, 0, 0])
     p = np.array([0.9, 0.8, 0.7, 0.2, 0.3, 0.4])   # untreated clearly lower-scored
-    t = me.pick_threshold(y, p, target="untreated_recall", min_recall=1.0)
+    t = me.pick_threshold(y, p, min_recall=1.0)
     pred = (p >= t).astype(int)
     assert recall_score(y, pred, pos_label=0) == 1.0   # all untreated caught
     assert t > 0.4                                      # tuned away from 0.5
