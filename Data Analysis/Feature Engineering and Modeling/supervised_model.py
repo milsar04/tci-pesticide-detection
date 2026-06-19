@@ -216,5 +216,30 @@ def run(out_dir=HERE, n_repeats=5, n_splits=5, seed=42, quick=False):
     return {"baseline": baseline, "booster": booster, "best_params": best_params}
 
 
+def run_label_sensitivity(min_share=0.5, n_repeats=5, n_splits=5, seed=42):
+    """re-evaluate the booster on the partial-treatment-cleaned label and report
+    the ROC-AUC delta vs the full label. additive - touches no exported file and
+    no production scoring path. prints + returns the comparison."""
+    df = mf.filter_modeling_rows(mf.load_descriptors())
+    df = mf.attach_treated_share(df)
+    Xf, yf, gf, _ = mf.build_xy(df)
+    full = me.evaluate_estimator(make_booster(), Xf, yf, gf,
+                                 n_repeats=n_repeats, n_splits=n_splits, seed=seed,
+                                 tune_threshold=True)
+    clean = mf.filter_clean_label(df, min_share=min_share)
+    Xc, yc, gc, _ = mf.build_xy(clean)
+    cleaned = me.evaluate_estimator(make_booster(), Xc, yc, gc,
+                                    n_repeats=n_repeats, n_splits=n_splits, seed=seed,
+                                    tune_threshold=True)
+    dropped = len(yf) - len(yc)
+    print(f"label sensitivity (min_share={min_share}): dropped {dropped} partial windows")
+    print(f"  full    n={len(yf)} ({int(yf.sum())} treated) "
+          f"roc_auc {full['roc_auc_mean']:.3f} | untreated recall {full['recall_untreated_mean']:.3f}")
+    print(f"  cleaned n={len(yc)} ({int(yc.sum())} treated) "
+          f"roc_auc {cleaned['roc_auc_mean']:.3f} | untreated recall {cleaned['recall_untreated_mean']:.3f}")
+    print(f"  delta roc_auc {cleaned['roc_auc_mean'] - full['roc_auc_mean']:+.3f}")
+    return {"full": full, "cleaned": cleaned, "min_share": min_share, "n_dropped": dropped}
+
+
 if __name__ == "__main__":
     run()
