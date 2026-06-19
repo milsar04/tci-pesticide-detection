@@ -38,9 +38,12 @@ import pytest
 
 def _have_real_data():
     import model_features as mf
-    return os.path.exists(mf.IN_FILE) and os.path.exists(
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__)))), "shared data", "potential_desiccant_events.csv"))
+    _IS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "Imputation and Smoothing")
+    if _IS_DIR not in sys.path:
+        sys.path.insert(0, _IS_DIR)
+    import pipeline_config as cfg
+    return os.path.exists(mf.IN_FILE) and os.path.exists(cfg.DESICCANT_EVENTS_FILE)
 
 
 @pytest.mark.skipif(not _have_real_data(), reason="real indices/event data not present")
