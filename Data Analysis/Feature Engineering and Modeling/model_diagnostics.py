@@ -6,9 +6,6 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 from sklearn.base import clone
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import roc_auc_score, average_precision_score
@@ -25,7 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 def permutation_importance_grouped(estimator, X, y, groups, n_splits=5, seed=42,
                                    n_repeats=10):
-    """global permutation importance on held-out grouped folds, averaged across folds."""
+    """grouped OOF permutation importance (n_splits folds x n_repeats column shuffles per fold)."""
     outer = me.make_splitter(n_splits=n_splits, seed=seed)
     accum = []
     for tr, te in outer.split(X, y, groups):
@@ -43,7 +40,7 @@ def permutation_importance_grouped(estimator, X, y, groups, n_splits=5, seed=42,
 
 
 def gain_importance(estimator, X, y):
-    """lightgbm native gain importance, or None if the backend has none."""
+    """native feature_importances_ from a fresh fit on all data, or None if unavailable."""
     m = clone(estimator).fit(X, y)
     if not hasattr(m, "feature_importances_"):
         return None
