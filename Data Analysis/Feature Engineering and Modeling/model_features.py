@@ -98,6 +98,36 @@ def build_xy(df, drop_timing=False, verbose=False):
     return X, y, groups, meta
 
 
+# treated-share label cleanup ----
+# Treated share lives in indices_final.csv (0-1 fraction, present only on treated
+# rows). joined per (PMT_SITE, year) - share is a season-level attribute.
+
+def attach_treated_share(df):
+    """add a treated_share column (max recorded share per PMT_SITE+year from
+    indices_final.csv). untreated / unrecorded -> 0.0. the production label
+    (treated) is unchanged; this only feeds the cleanup sensitivity."""
+    fin = pd.read_csv(os.path.join(_IS_DIR, "indices_final.csv"),
+                      usecols=["PMT_SITE", "date", "Treated share"])
+    fin["year"] = pd.to_datetime(fin["date"], errors="coerce").dt.year
+    fin["share"] = pd.to_numeric(fin["Treated share"], errors="coerce")
+    per = (fin.dropna(subset=["share"]).groupby(["PMT_SITE", "year"])["share"]
+           .max().reset_index())
+    out = df.merge(per, on=["PMT_SITE", "year"], how="left")
+    out["treated_share"] = out["share"].fillna(0.0)
+    return out.drop(columns=["share"])
+
+
+def filter_clean_label(df, min_share=0.5):
+    """drop ambiguous partial-treatment windows: keep confident treated
+    (treated==1 and treated_share>=min_share) + all confident untreated
+    (treated==0). windows with 0 < share < min_share are dropped as label noise.
+    needs a treated_share column (see attach_treated_share)."""
+    share = pd.to_numeric(df.get("treated_share", 0.0), errors="coerce").fillna(0.0)
+    treated = df["treated"].astype(int) == 1
+    ambiguous = treated & (share > 0) & (share < min_share)
+    return df[~ambiguous].reset_index(drop=True).copy()
+
+
 def imputed_scaled_view(X):
     """median-impute NaNs then z-score; returns (X_scaled ndarray, fitted imputer, fitted scaler).
     transformers are returned so a train/test workflow can .transform() the test split

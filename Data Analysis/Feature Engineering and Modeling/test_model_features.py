@@ -71,3 +71,24 @@ def test_real_file_filters_to_405_windows():
     kept = mf.filter_modeling_rows(mf.load_descriptors())
     assert len(kept) == 405
     assert int(kept["treated"].astype(int).sum()) == 309
+
+
+def test_filter_clean_label_drops_partial_treated():
+    df = pd.DataFrame({
+        "PMT_SITE": ["A", "B", "C", "D"],
+        "treated": [1, 1, 0, 1],
+        "treated_share": [1.0, 0.1, 0.0, 0.5],
+    })
+    out = mf.filter_clean_label(df, min_share=0.5)
+    # B (treated, share 0.1) is ambiguous -> dropped. D (share 0.5) is kept (>= min).
+    assert list(out["PMT_SITE"]) == ["A", "C", "D"]
+
+
+def test_filter_clean_label_keeps_all_untreated():
+    df = pd.DataFrame({
+        "PMT_SITE": ["A", "B"],
+        "treated": [0, 0],
+        "treated_share": [0.0, 0.0],
+    })
+    out = mf.filter_clean_label(df, min_share=0.8)
+    assert list(out["PMT_SITE"]) == ["A", "B"]
