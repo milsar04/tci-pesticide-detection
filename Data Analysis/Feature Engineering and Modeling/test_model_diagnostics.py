@@ -30,3 +30,16 @@ def test_permutation_importance_returns_one_row_per_feature():
     assert set(imp["feature"]) == {"a", "b", "c"}
     assert len(imp) == 3
     assert {"importance_mean", "importance_std"} <= set(imp.columns)
+
+
+def test_diagnostics_run_writes_outputs(tmp_path):
+    # reduced real-data run: 1 seed, no grid, small permutation repeats -> fast.
+    md.run(out_dir=str(tmp_path), quick=True)
+    assert os.path.exists(os.path.join(tmp_path, "feature_importance.csv"))
+    assert os.path.exists(os.path.join(tmp_path, "robustness.csv"))
+    assert os.path.exists(os.path.join(tmp_path, "figures", "feature_importance.png"))
+    fi = pd.read_csv(os.path.join(tmp_path, "feature_importance.csv"))
+    assert len(fi) == 65  # one row per descriptor
+    rob = pd.read_csv(os.path.join(tmp_path, "robustness.csv"))
+    assert set(rob["check"]) >= {"seed_stability", "leave_one_year_out",
+                                 "imbalance_sensitivity", "timing_ablation"}

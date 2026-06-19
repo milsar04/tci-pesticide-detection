@@ -6,6 +6,9 @@ import os
 import sys
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from sklearn.base import clone
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import roc_auc_score, average_precision_score
@@ -117,3 +120,61 @@ def timing_ablation(df, n_repeats=3, n_splits=5, seed=42):
                      "n_features": X.shape[1],
                      "roc_auc": m["roc_auc_mean"], "pr_auc": m["pr_auc_mean"]})
     return pd.DataFrame(rows)
+
+
+# figure + orchestrator ----
+
+def _importance_figure(fi, out_dir, top=15):
+    """top-N descriptors by permutation importance, coloured by index family."""
+    fig_dir = os.path.join(out_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
+    top_fi = fi.head(top).iloc[::-1]
+    families = [f.split("_")[0] for f in top_fi["feature"]]
+    palette = {fam: c for fam, c in zip(sorted(set(families)), plt.cm.tab10.colors)}
+    colors = [palette[fam] for fam in families]
+    plt.figure(figsize=(7, 5))
+    plt.barh(top_fi["feature"], top_fi["importance_mean"], color=colors)
+    plt.xlabel("permutation importance (avg-precision drop)")
+    plt.title(f"top {top} descriptors driving P(treated)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(fig_dir, "feature_importance.png"), dpi=120)
+    plt.close()
+
+
+def run(out_dir=HERE, quick=False, seed=42):
+    """write feature_importance.csv + figure and robustness.csv. quick = fast smoke run."""
+    df = mf.filter_modeling_rows(mf.load_descriptors())
+    X, y, groups, meta = mf.build_xy(df)
+
+    # explainability
+    perm = permutation_importance_grouped(
+        sm.make_booster(), X, y, groups,
+        n_splits=3 if quick else 5, seed=seed, n_repeats=3 if quick else 10)
+    gain = gain_importance(sm.make_booster(), X, y)
+    fi = perm if gain is None else perm.merge(gain, on="feature", how="left")
+    fi.to_csv(os.path.join(out_dir, "feature_importance.csv"),
+              index=False, float_format="%.5f")
+    _importance_figure(fi, out_dir)
+
+    # robustness
+    seeds = (42,) if quick else (42, 0, 1, 7, 123)
+    weights = (None, "balanced") if quick else (None, "balanced", 5, 10)
+    reps = 1 if quick else 3
+    splits = 3 if quick else 5
+    rob = pd.concat([
+        seed_stability(X, y, groups, seeds=seeds, n_splits=splits),
+        leave_one_year_out(X, y, meta),
+        imbalance_sensitivity(X, y, groups, weights=weights,
+                              n_repeats=reps, n_splits=splits, seed=seed),
+        timing_ablation(df, n_repeats=reps, n_splits=splits, seed=seed),
+    ], ignore_index=True)
+    rob.to_csv(os.path.join(out_dir, "robustness.csv"),
+               index=False, float_format="%.4f")
+
+    print(f"wrote feature_importance.csv ({len(fi)} rows) and "
+          f"robustness.csv ({len(rob)} rows)")
+    return {"feature_importance": fi, "robustness": rob}
+
+
+if __name__ == "__main__":
+    run()
