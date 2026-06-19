@@ -128,6 +128,7 @@ def _importance_figure(fi, out_dir, top=15):
     """top-N descriptors by permutation importance, coloured by index family."""
     fig_dir = os.path.join(out_dir, "figures")
     os.makedirs(fig_dir, exist_ok=True)
+    top = min(top, len(fi))
     top_fi = fi.head(top).iloc[::-1]
     families = [f.split("_")[0] for f in top_fi["feature"]]
     palette = {fam: c for fam, c in zip(sorted(set(families)), plt.cm.tab10.colors)}
