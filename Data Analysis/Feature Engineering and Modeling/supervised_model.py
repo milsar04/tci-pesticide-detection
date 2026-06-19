@@ -3,6 +3,7 @@
 # fallback), isotonic-calibrated. evaluated through model_eval's grouped repeated CV.
 
 import os
+import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -71,6 +72,14 @@ def baseline_estimator(class_weight="balanced"):
         ("scale", StandardScaler()),
         ("lr", LogisticRegression(class_weight=class_weight, max_iter=1000)),
     ])
+
+
+def _grouped_cal_cv(X, y, groups, n_splits=3, seed=42):
+    """precomputed grouped (train, test) splits for CalibratedClassifierCV.cv.
+    sklearn accepts an iterable of index arrays, which sidesteps that
+    CalibratedClassifierCV.fit does not forward `groups` to a splitter object,
+    so a plot's windows never split across calibration fit and apply."""
+    return list(me.make_splitter(n_splits=n_splits, seed=seed).split(X, y, groups))
 
 
 def final_calibrated_model(best_params=None):

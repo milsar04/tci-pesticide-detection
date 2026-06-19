@@ -57,3 +57,14 @@ def test_integration_run_writes_outputs_and_beats_floor(tmp_path):
     metrics = pd.read_csv(os.path.join(tmp_path, "model_metrics.csv"))
     assert "threshold_mean" in metrics.columns
     assert metrics["threshold_mean"].between(0, 1).all()
+
+
+def test_grouped_calibration_cv_has_no_group_leak():
+    X = pd.DataFrame({"f": np.arange(12, dtype=float)})
+    y = pd.Series([0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1])
+    groups = pd.Series(["A", "A", "B", "B", "C", "C", "D", "D", "E", "E", "F", "F"])
+    splits = sm._grouped_cal_cv(X, y, groups, n_splits=3, seed=42)
+    g = groups.to_numpy()
+    assert len(splits) == 3
+    for tr, te in splits:
+        assert set(g[tr]).isdisjoint(set(g[te]))
