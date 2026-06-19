@@ -1,0 +1,14 @@
+check,param,roc_auc,pr_auc,n_test,recall_untreated,precision_untreated,n_features
+seed_stability,42,0.8890,0.9611,,,,
+seed_stability,0,0.9053,0.9650,,,,
+seed_stability,1,0.8920,0.9567,,,,
+seed_stability,7,0.9149,0.9711,,,,
+seed_stability,123,0.9005,0.9623,,,,
+leave_one_year_out,2020,0.8471,0.9482,208.0000,,,
+leave_one_year_out,2021,0.7566,0.8962,193.0000,,,
+imbalance_sensitivity,None,0.8933,0.9601,,0.7554,0.6642,
+imbalance_sensitivity,balanced,0.8912,0.9587,,0.7390,0.6559,
+imbalance_sensitivity,5,0.8937,0.9599,,0.7417,0.6650,
+imbalance_sensitivity,10,0.8939,0.9606,,0.7378,0.6768,
+timing_ablation,drop_timing=False,0.8912,0.9587,,,,65.0000
+timing_ablation,drop_timing=True,0.8543,0.9431,,,,45.0000
