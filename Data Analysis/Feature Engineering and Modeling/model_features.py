@@ -3,7 +3,10 @@
 
 import os
 import sys
+import numpy as np
 import pandas as pd
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
 
 # shared index list from the pipeline config (single source of truth for the 5 indices).
 # cross-folder import via the sibling-dir sys.path pattern (see phenology.py).
@@ -93,3 +96,13 @@ def build_xy(df, drop_timing=False, verbose=False):
         print(f"Unique plots       : {groups.nunique()}")
 
     return X, y, groups, meta
+
+
+def imputed_scaled_view(X):
+    """median-impute NaNs then z-score; returns (X_scaled ndarray, fitted imputer, fitted scaler).
+    transformers are returned so a train/test workflow can .transform() the test split
+    with train-fit objects (no leakage). pass only training data when doing CV."""
+    imp = SimpleImputer(strategy="median").fit(X)
+    scl = StandardScaler().fit(imp.transform(X))
+    X_scaled = scl.transform(imp.transform(X))
+    return X_scaled, imp, scl
