@@ -9,6 +9,14 @@ import model_diagnostics as md
 import supervised_model as sm
 
 
+def test_year_masks_are_disjoint_and_complete():
+    meta = pd.DataFrame({"year": [2020, 2020, 2021, 2021, 2020]})
+    tr, te = md._year_masks(meta, 2021)
+    assert not (tr & te).any()
+    assert (tr | te).all()
+    assert te.sum() == 2 and tr.sum() == 3
+
+
 def test_permutation_importance_returns_one_row_per_feature():
     rng = np.random.default_rng(0)
     n = 60
