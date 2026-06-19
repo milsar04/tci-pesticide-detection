@@ -75,10 +75,9 @@ def baseline_estimator(class_weight="balanced"):
 
 
 def _grouped_cal_cv(X, y, groups, n_splits=3, seed=42):
-    """precomputed grouped (train, test) splits for CalibratedClassifierCV.cv.
-    sklearn accepts an iterable of index arrays, which sidesteps that
-    CalibratedClassifierCV.fit does not forward `groups` to a splitter object,
-    so a plot's windows never split across calibration fit and apply."""
+    """precomputed grouped (train, test) index splits for CalibratedClassifierCV.cv."""
+    # sklearn cv= accepts a list of index arrays; this sidesteps CalibratedClassifierCV.fit
+    # not forwarding groups to a splitter object, so plots never leak across folds.
     return list(me.make_splitter(n_splits=n_splits, seed=seed).split(X, y, groups))
 
 
