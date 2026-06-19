@@ -92,6 +92,25 @@ def leave_one_year_out(X, y, meta):
     return pd.DataFrame(rows)
 
 
+def year_shift_summary(X, y, meta, top_features):
+    """per-year class balance, treatment-type mix, and mean of the top features.
+    attributes the asymmetric leave-one-year-out drop (distribution shift vs
+    class balance vs sample size)."""
+    y = np.asarray(y, int)
+    rows = []
+    for yr in sorted(meta["year"].unique()):
+        m = (meta["year"] == yr).to_numpy()
+        row = {"year": int(yr), "n": int(m.sum()),
+               "n_treated": int(y[m].sum()), "n_untreated": int((y[m] == 0).sum())}
+        for k, v in meta.loc[m, "treatment_type"].value_counts().items():
+            row[f"type_{k}"] = int(v)
+        for f in top_features:
+            xf = np.asarray(X[f], float)[m]
+            row[f"mean_{f}"] = float(np.nanmean(xf)) if len(xf) else float("nan")
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def imbalance_sensitivity(X, y, groups, weights=(None, "balanced", 5, 10),
                           n_repeats=3, n_splits=5, seed=42):
     """confirm the class_weight knob earns its place."""
@@ -157,6 +176,10 @@ def run(out_dir=HERE, quick=False, seed=42):
               index=False, float_format="%.5f")
     _importance_figure(fi, out_dir)
 
+    # year-shift attribution for the asymmetric leave-one-year-out drop.
+    ys = year_shift_summary(X, y, meta, list(fi["feature"].head(8)))
+    ys.to_csv(os.path.join(out_dir, "year_shift.csv"), index=False, float_format="%.4f")
+
     # robustness
     seeds = (42,) if quick else (42, 0, 1, 7, 123)
     weights = (None, "balanced") if quick else (None, "balanced", 5, 10)
@@ -172,8 +195,8 @@ def run(out_dir=HERE, quick=False, seed=42):
     rob.to_csv(os.path.join(out_dir, "robustness.csv"),
                index=False, float_format="%.4f")
 
-    print(f"wrote feature_importance.csv ({len(fi)} rows) and "
-          f"robustness.csv ({len(rob)} rows)")
+    print(f"wrote feature_importance.csv ({len(fi)} rows), "
+          f"robustness.csv ({len(rob)} rows), and year_shift.csv ({len(ys)} rows)")
     return {"feature_importance": fi, "robustness": rob}
 
 

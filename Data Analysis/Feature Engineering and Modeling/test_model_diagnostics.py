@@ -32,6 +32,18 @@ def test_permutation_importance_returns_one_row_per_feature():
     assert {"importance_mean", "importance_std"} <= set(imp.columns)
 
 
+def test_year_shift_summary_counts_and_means():
+    X = pd.DataFrame({"f1": [1.0, 3.0, 5.0, 7.0]})
+    y = [1, 0, 1, 1]
+    meta = pd.DataFrame({"year": [2020, 2020, 2021, 2021],
+                         "treatment_type": ["fungicide", "No", "herbicide", "fungicide"]})
+    out = md.year_shift_summary(X, y, meta, ["f1"])
+    r2020 = out[out["year"] == 2020].iloc[0]
+    assert r2020["n_treated"] == 1 and r2020["n_untreated"] == 1
+    assert r2020["mean_f1"] == 2.0          # mean of [1.0, 3.0]
+    assert int(r2020["type_No"]) == 1
+
+
 def test_diagnostics_run_writes_outputs(tmp_path):
     # reduced real-data run: 1 seed, no grid, small permutation repeats -> fast.
     md.run(out_dir=str(tmp_path), quick=True)

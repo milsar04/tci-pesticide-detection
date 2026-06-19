@@ -1,0 +1,5 @@
+year,n,n_treated,n_untreated,type_No,mean_VH_roi,mean_RVI_eos_time,mean_VH_rod,mean_VH_eos_value,mean_VH_eos_time,mean_VH_pos_value,mean_VH_sos_value,mean_RENDVI_aos_value,type_Herbicide,type_Fungicide,type_Mixed,type_Other,type_Insecticide
+2019,3,0,3,3,,330.3333,0.0001,0.0256,334.3333,0.0283,,0.3049,,,,,
+2020,208,169,39,39,0.0006,181.4519,0.0008,0.0256,175.7404,0.0451,0.0255,0.5171,70.0000,52.0000,41.0000,4.0000,2.0000
+2021,193,140,53,53,0.0006,177.0155,0.0007,0.0254,174.1969,0.0446,0.0257,0.5209,39.0000,53.0000,47.0000,1.0000,
+2022,1,0,1,1,0.0002,59.0000,,,0.0000,0.0136,0.0123,0.2972,,,,,
