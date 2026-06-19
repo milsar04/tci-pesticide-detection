@@ -8,14 +8,13 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.base import clone
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
-from sklearn.model_selection import cross_val_predict, GridSearchCV
-from sklearn.metrics import precision_recall_curve
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import precision_recall_curve, brier_score_loss
 
 import model_features as mf
 import model_eval as me
@@ -81,13 +80,38 @@ def _grouped_cal_cv(X, y, groups, n_splits=3, seed=42):
     return list(me.make_splitter(n_splits=n_splits, seed=seed).split(X, y, groups))
 
 
-def final_calibrated_model(best_params=None):
-    """isotonic-calibrated booster for the exported probabilities."""
+def fit_calibrated(X, y, groups, best_params=None, method="isotonic", seed=42):
+    """isotonic/sigmoid-calibrated booster with grouped internal folds."""
     base = make_booster(**(best_params or {}))
-    # cv=3 uses stratified (not grouped) folds inside CalibratedClassifierCV - intentional.
-    # calibration is a post-hoc monotonic transform; within-plot leakage here does not
-    # affect the AUC/PR-AUC metrics (which come from the outer grouped CV in model_eval).
-    return CalibratedClassifierCV(base, method="isotonic", cv=3)
+    cv = _grouped_cal_cv(X, y, groups, n_splits=3, seed=seed)
+    model = CalibratedClassifierCV(base, method=method, cv=cv)
+    model.fit(X, y)
+    return model
+
+
+def oof_calibrated_proba(X, y, groups, best_params=None, method="isotonic",
+                         n_splits=5, seed=42):
+    """out-of-fold P(treated) with grouped calibration nested in each outer train fold."""
+    p = np.zeros(len(y), float)
+    outer = me.make_splitter(n_splits=n_splits, seed=seed)
+    for tr, te in outer.split(X, y, groups):
+        m = fit_calibrated(X.iloc[tr], y.iloc[tr], groups.iloc[tr],
+                           best_params=best_params, method=method, seed=seed)
+        p[te] = m.predict_proba(X.iloc[te])[:, 1]
+    return p
+
+
+def _choose_calibration(X, y, groups, best_params, n_splits=5, seed=42):
+    """pick isotonic vs sigmoid by lower grouped out-of-fold Brier. returns (p_oof, method)."""
+    out = {}
+    for method in ("isotonic", "sigmoid"):
+        p = oof_calibrated_proba(X, y, groups, best_params=best_params,
+                                 method=method, n_splits=n_splits, seed=seed)
+        out[method] = (p, brier_score_loss(np.asarray(y, int), p))
+    best = min(out, key=lambda m: out[m][1])
+    print(f"calibration brier: isotonic {out['isotonic'][1]:.4f} | "
+          f"sigmoid {out['sigmoid'][1]:.4f} -> using {best}")
+    return out[best][0], best
 
 
 def rollup_by_plot(scores):
@@ -123,7 +147,7 @@ def _figures(y, p_oof, out_dir):
     plt.plot(mean_pred, frac_pos, "o-")
     plt.xlabel("mean predicted P(treated)")
     plt.ylabel("observed treated rate")
-    plt.title("calibration - isotonic booster (out-of-fold)")
+    plt.title("calibration - booster (grouped out-of-fold)")
     plt.savefig(os.path.join(fig_dir, "calibration_curve.png"), dpi=120, bbox_inches="tight")
     plt.close()
 
@@ -164,15 +188,15 @@ def run(out_dir=HERE, n_repeats=5, n_splits=5, seed=42, quick=False):
         gs.fit(X, y, groups=groups)
         best_params = gs.best_params_
 
-    final = final_calibrated_model(best_params)
-    # out-of-fold probabilities for honest calibration/PR figures.
-    p_oof = cross_val_predict(clone(final), X, y,
-                              cv=me.make_splitter(n_splits=n_splits, seed=seed),
-                              groups=groups, method="predict_proba")[:, 1]
+    # choose the calibration method by out-of-fold Brier (grouped for both), and use
+    # the matching leak-free out-of-fold probabilities for the honest figures.
+    p_oof, cal_method = _choose_calibration(X, y, groups, best_params,
+                                            n_splits=n_splits, seed=seed)
     _figures(y, p_oof, out_dir)
 
-    # refit on all windows for the exported scores.
-    final.fit(X, y)
+    # refit the chosen calibrated model on all windows for the exported scores.
+    final = fit_calibrated(X, y, groups, best_params=best_params,
+                           method=cal_method, seed=seed)
     p_all = final.predict_proba(X)[:, 1]
 
     scores = meta[["PMT_SITE", "window", "year", "treated"]].copy()
