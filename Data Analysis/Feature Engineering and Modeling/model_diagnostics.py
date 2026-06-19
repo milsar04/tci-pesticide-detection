@@ -78,8 +78,10 @@ def leave_one_year_out(X, y, meta):
         tr, te = _year_masks(meta, test_year)
         if len(np.unique(y[tr])) < 2 or len(np.unique(y[te])) < 2:
             continue
-        m = sm.make_booster().fit(X[tr], y[tr])
-        p = m.predict_proba(X[te])[:, 1]
+        # ponytail: no group control here - same-plot overlap across years is
+        # intentional; LOYO tests cross-season transfer, not within-plot generalization.
+        m = sm.make_booster().fit(X.iloc[tr], y[tr])
+        p = m.predict_proba(X.iloc[te])[:, 1]
         rows.append({"check": "leave_one_year_out", "param": int(test_year),
                      "roc_auc": roc_auc_score(y[te], p),
                      "pr_auc": average_precision_score(y[te], p),
@@ -109,7 +111,8 @@ def timing_ablation(df, n_repeats=3, n_splits=5, seed=42):
     for drop in (False, True):
         X, y, groups, _ = mf.build_xy(df, drop_timing=drop)
         m = me.evaluate_estimator(sm.make_booster(), X, y, groups,
-                                  n_repeats=n_repeats, n_splits=n_splits, seed=seed)
+                                  n_repeats=n_repeats, n_splits=n_splits, seed=seed,
+                                  tune_threshold=True)
         rows.append({"check": "timing_ablation", "param": f"drop_timing={drop}",
                      "n_features": X.shape[1],
                      "roc_auc": m["roc_auc_mean"], "pr_auc": m["pr_auc_mean"]})
