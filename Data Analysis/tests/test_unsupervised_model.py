@@ -42,7 +42,8 @@ def test_best_kmeans_picks_correct_k():
 
 def test_integration_quick_run(tmp_path):
     """quick real-data run: checks new columns are appended and figures are written."""
-    fem_dir = os.path.dirname(os.path.abspath(__file__))
+    fem_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "Feature Engineering and Modeling")
     for f in ["model_risk_scores.csv", "model_metrics.csv"]:
         shutil.copy(os.path.join(fem_dir, f), tmp_path / f)
     res = um.run(out_dir=str(tmp_path), quick=True, n_splits=3)
