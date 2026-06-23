@@ -33,6 +33,29 @@ def test_build_event_xy_shapes_and_labels():
     assert X.loc[0, "RVI_post_slope_14d"] < 0   # the event plot declines after day 0
 
 
+def test_clean_controls_drops_treated_control_windows():
+    edate = pd.Timestamp("2021-06-10")
+    joined = pd.DataFrame({"matched_plot": ["E"], "date": [edate]})
+    dates = pd.to_datetime(["2021-05-30", "2021-06-06", "2021-06-13",
+                            "2021-06-20", "2021-06-27"])
+    # C is a genuinely untreated control; D had a Herbicide spray inside the
+    # event window, so it is an unlabelled-treatment control that must be dropped.
+    data = pd.concat([_series("C", dates, [0.8, 0.8, 0.8, 0.8, 0.8]),
+                      _series("D", dates, [0.8, 0.8, 0.4, 0.1, 0.0])],
+                     ignore_index=True)
+    data["Treatment status"] = "No"
+    data.loc[(data["PMT_SITE"] == "D") & (data["date"] == dates[2]), "Treatment status"] = "Herbicide"
+    edoy = edate.dayofyear
+    desc = pd.DataFrame({"PMT_SITE": ["C", "D"], "is_organic": [False, False],
+                         "has_season": [True, True], "year": [2021, 2021],
+                         "SAVI_sos_time": [edoy - 30, edoy - 30],
+                         "SAVI_eos_time": [edoy + 30, edoy + 30]})
+    _, y_clean, g_clean, _ = dm.build_event_xy(joined, data, desc, clean_controls=True)
+    assert list(g_clean) == ["E", "C"]            # D screened out, C kept
+    _, y_all, g_all, _ = dm.build_event_xy(joined, data, desc, clean_controls=False)
+    assert set(g_all) == {"E", "C", "D"}          # no screening keeps D
+
+
 import pytest
 
 

@@ -113,15 +113,27 @@ def joinable_events(events, indices_plots, aliases):
 
 def event_coverage_report(events_all, joined, data, windows):
     """human-readable summary of the event join: coverage, organic-with-event,
-    out-of-window events, and a label-noise audit (matched plot whose Treatment
-    status is No despite a desiccation event). returns a string."""
+    out-of-window events, and a label-noise audit. Treatment status is per-day,
+    so the audit reads the status ON each event's own date (not collapsed per
+    plot with .first(), which picks up an early-season 'No' and mislabels a
+    treated plot). an event is label-noise only if its own date carries 'No'."""
     comm = data.groupby("PMT_SITE")["COMM"].first()
-    status = data.groupby("PMT_SITE")["Treatment status"].first()
+    # per-(plot, date) flag: was any treatment recorded that day?
+    day = data.copy()
+    day["d"] = pd.to_datetime(day["date"], errors="coerce").dt.normalize()
+    day["treated"] = day["Treatment status"].fillna("No").astype(str).str.strip().str.lower().ne("no")
+    treated_day = day.groupby(["PMT_SITE", "d"])["treated"].any()
+
+    keys = list(zip(joined["matched_plot"],
+                    pd.to_datetime(joined["date"], errors="coerce").dt.normalize()))
+    on_date = treated_day.reindex(keys)          # True/False, NaN if no row that date
+    confirmed = int((on_date == True).sum())
+    no_row = int(on_date.isna().sum())
+    label_noise = sorted({p for (p, _), v in zip(keys, on_date.to_numpy()) if v == False})
+
     unmatched = sorted(set(events_all["PMT_SITE"]) - set(joined["PMT_SITE"]))
     organic = sorted({p for p in joined["matched_plot"]
                       if str(comm.get(p)) == ORGANIC_VALUE})
-    label_noise = sorted({p for p in joined["matched_plot"]
-                          if str(status.get(p, "No")).strip().lower() == "no"})
     outside = 0
     for _, r in joined.iterrows():
         if not _in_any_window(r["matched_plot"], r["date"], windows):
@@ -134,7 +146,9 @@ def event_coverage_report(events_all, joined, data, windows):
         f"unmatched    : {len(unmatched)}",
         f"events outside the plot's activity window: {outside}",
         f"events on organic plots: {len(organic)}",
-        f"label-noise (matched plot Treatment status == No): {len(label_noise)}",
+        f"events with a treatment recorded on the event date: {confirmed}",
+        f"events with no indices row on the event date: {no_row}",
+        f"label-noise (event-date Treatment status == No): {len(label_noise)}",
     ]
     if unmatched:
         lines.append("  unmatched ids (first 30): " + ", ".join(unmatched[:30]))

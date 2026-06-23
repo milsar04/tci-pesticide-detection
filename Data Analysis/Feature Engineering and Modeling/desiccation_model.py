@@ -47,13 +47,37 @@ def _instance_descriptors(data, plot, edate):
     return row
 
 
-def build_event_xy(joined, data, desc):
+def _treated_date_index(data):
+    """per-plot sorted spray dates (rows whose per-day Treatment status is not
+    'No'). Treatment status is per observation row, so this is the day-level
+    record of applications. empty if the column is absent (synthetic test
+    frames), which makes control screening a no-op."""
+    if "Treatment status" not in data.columns:
+        return {}
+    nonno = data["Treatment status"].fillna("No").astype(str).str.strip().str.lower().ne("no")
+    t = data.loc[nonno, ["PMT_SITE", "date"]]
+    return {p: sorted(set(pd.to_datetime(g["date"], errors="coerce").dt.normalize().dropna()))
+            for p, g in t.groupby("PMT_SITE")}
+
+
+def _treated_in_window(treated_idx, plot, edate):
+    """True if plot has any spray date within the event window around edate."""
+    lo = edate - pd.Timedelta(days=cfg.EVENT_PRE_DAYS)
+    hi = edate + pd.Timedelta(days=cfg.EVENT_POST_DAYS)
+    return any(lo <= d <= hi for d in treated_idx.get(plot, ()))
+
+
+def build_event_xy(joined, data, desc, clean_controls=True):
     """assemble the detector matrix: one row per event (y=1) and per matched-date
     control (y=0), columns = the 20 event descriptors on the unsmoothed series.
-    groups = PMT_SITE (controls repeat plots, so grouped CV is mandatory)."""
+    groups = PMT_SITE (controls repeat plots, so grouped CV is mandatory).
+    clean_controls=True drops any control whose per-day Treatment status is non-No
+    somewhere in its event window, so the negatives are genuinely untreated rather
+    than unlabelled applications the rough event list missed (see _treated_*)."""
     from eda import select_control_windows
     event_plots_by_year = (joined.groupby(joined["date"].dt.year)["matched_plot"]
                            .apply(set).to_dict())
+    treated_idx = _treated_date_index(data) if clean_controls else {}
     rows, ys, groups = [], [], []
     for _, ev in joined.iterrows():
         plot, edate = ev["matched_plot"], ev["date"]
@@ -61,6 +85,8 @@ def build_event_xy(joined, data, desc):
         controls = select_control_windows(desc, edate.dayofyear, edate.year,
                                           event_plots_by_year.get(edate.year, set()))
         for cplot in controls["PMT_SITE"].unique():
+            if clean_controls and _treated_in_window(treated_idx, cplot, edate):
+                continue
             rows.append(_instance_descriptors(data, cplot, edate)); ys.append(0); groups.append(cplot)
     X = pd.DataFrame(rows, columns=EVENT_FEATURE_COLS).astype(float)
     y = pd.Series(ys, name="event").astype(int)
@@ -97,16 +123,18 @@ def _figures(y, p_oof, out_dir):
     plt.close()
 
 
-def run(out_dir=HERE, n_repeats=3, n_splits=3, seed=42):
+def run(out_dir=HERE, n_repeats=3, n_splits=3, seed=42, clean_controls=True):
     """evaluate baseline + booster on the event matrix, calibrate + export. PR-AUC
     (positive=event, no-skill floor ~ prevalence) is the headline number. reuses
-    the supervised booster + grouped leak-free calibration unchanged."""
+    the supervised booster + grouped leak-free calibration unchanged.
+    clean_controls=True screens the negatives to genuinely untreated windows
+    using the per-day Treatment status (see build_event_xy)."""
     import activity_filter as af
     joined, _ = af.load_desiccation_events(write_report=False)
     data = af.load_imputed_unsmoothed()
     data["date"] = pd.to_datetime(data["date"], errors="coerce")
     desc = pd.read_csv(mf.IN_FILE)               # phenology_descriptors.csv
-    X, y, groups, meta = build_event_xy(joined, data, desc)
+    X, y, groups, meta = build_event_xy(joined, data, desc, clean_controls=clean_controls)
 
     # baseline = LR on the single best descriptor; headline = booster on all 20.
     # tune_threshold left off: the class-0 operating point is not meaningful here,

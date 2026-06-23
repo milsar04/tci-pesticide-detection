@@ -165,27 +165,32 @@ def test_joinable_events_filters_and_tags_matched_plot():
 
 def test_event_coverage_report_counts_and_audits():
     events = pd.DataFrame({
-        "PMT_SITE": ["P1", "P2", "GHOST"],
+        "PMT_SITE": ["P1", "P2", "P3", "GHOST"],
+        "date": pd.to_datetime(["2021-05-01", "2021-05-01", "2021-05-01", "2021-05-01"]),
+        "ingredients": [["Diquat"], ["Diquat"], ["Diquat"], ["Diquat"]],
+        "iso_year": pd.array([2021, 2021, 2021, 2021], dtype="Int64"),
+    })
+    joined = pd.DataFrame({
+        "PMT_SITE": ["P1", "P2", "P3"],
         "date": pd.to_datetime(["2021-05-01", "2021-05-01", "2021-05-01"]),
         "ingredients": [["Diquat"], ["Diquat"], ["Diquat"]],
         "iso_year": pd.array([2021, 2021, 2021], dtype="Int64"),
+        "matched_plot": ["P1", "P2", "P3"],
     })
-    joined = pd.DataFrame({
-        "PMT_SITE": ["P1", "P2"],
-        "date": pd.to_datetime(["2021-05-01", "2021-05-01"]),
-        "ingredients": [["Diquat"], ["Diquat"]],
-        "iso_year": pd.array([2021, 2021], dtype="Int64"),
-        "matched_plot": ["P1", "P2"],
-    })
+    # Treatment status is per-day: P1's first row is "No" but its EVENT date is a
+    # real treatment, so P1 must NOT be flagged label-noise (the old .first() bug
+    # did). P3's event date carries "No", so it is the only genuine label-noise.
     data = pd.DataFrame({
-        "PMT_SITE": ["P1", "P2"],
-        "COMM": ["POTATO", "POTATO-ORGANIC"],
-        "Treatment status": ["No", "Fungicide"],
+        "PMT_SITE": ["P1", "P1", "P2", "P3"],
+        "date": pd.to_datetime(["2021-03-01", "2021-05-01", "2021-05-01", "2021-05-01"]),
+        "COMM": ["POTATO", "POTATO", "POTATO-ORGANIC", "POTATO"],
+        "Treatment status": ["No", "Herbicide", "Fungicide", "No"],
     })
     windows = {"P1": [(pd.Timestamp("2021-03-01"), pd.Timestamp("2021-09-01"))]}
     rep = af.event_coverage_report(events, joined, data, windows)
-    assert "events total : 3" in rep
-    assert "matched      : 2" in rep
+    assert "events total : 4" in rep
+    assert "matched      : 3" in rep
     assert "GHOST" in rep                 # unmatched id listed
     assert "P2" in rep                    # organic-with-event audit
-    assert "P1" in rep                    # label-noise audit (status "No")
+    assert "events with a treatment recorded on the event date: 2" in rep
+    assert "label-noise (event-date Treatment status == No): 1" in rep  # only P3, not P1
