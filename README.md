@@ -106,6 +106,11 @@ season (309 treated, 96 untreated). Evaluation is grouped repeated cross-validat
 | LightGBM on all 65 descriptors | 0.892 | headline P(treated) risk score, calibrated |
 | desiccation detector (booster) | 0.810 | does not beat its 0.807 single-descriptor baseline |
 
+![top 15 descriptors driving P(treated)](Data%20Analysis/Feature%20Engineering%20and%20Modeling/figures/feature_importance.png)
+
+Permutation importance on held-out grouped folds: VH (SAR backscatter) descriptors
+dominate, with SAVI and RVI filling in behind them.
+
 The strongest single separator is peak-season VH backscatter. Treatment shows up in
 vigour and amplitude rather than in season timing: the apparent timing separation is
 largely an artifact of the activity-date windows, which
