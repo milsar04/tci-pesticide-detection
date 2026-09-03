@@ -54,8 +54,6 @@ Two derived datasets are deliberately not committed because they are reproducibl
 in minutes: `indices_final.csv` (from `process_final.py`) and `aligned_series.csv`
 (from `phenology.py`).
 
-This is client data and the repository is private. Keep it private.
-
 ## Running the pipeline
 
 Modules import each other by bare name, so run each script from its own folder.
